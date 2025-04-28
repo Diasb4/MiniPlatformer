@@ -1,79 +1,71 @@
 using UnityEngine;
 
-public class PlayerMovement : MonoBehaviour
+public class PlayerController : MonoBehaviour
 {
-    [Header("Movement Settings")]
-    [SerializeField] private float moveSpeed = 5f;
-    [SerializeField] private float jumpForce = 14f;
-
-    [Header("Ground Check")]
-    [SerializeField] private float groundCheckRadius = 0.2f;  // Радиус проверки земли
-    [SerializeField] private Transform groundCheck;          // Трансформ для проверки земли
-    [SerializeField] private LayerMask groundLayer;          // Слой земли
-
+    public float moveSpeed = 5f;
+    public float jumpForce = 14f;
     private Rigidbody2D rb;
     private bool isGrounded;
-    private bool canJump;
-    private Vector2 moveInput;
+    public LayerMask groundLayer;
+    public Transform groundCheck;
+    public float groundCheckRadius = 0.2f;
+
+    // Синглтон
+    public static PlayerController Instance { get; private set; }
+
+    // Позиция последнего чекпоинта
+    private Vector2 lastCheckpointPosition;
+
+    void Awake()
+    {
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
 
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
-        if (groundCheck == null)
-        {
-            Debug.LogError("GroundCheck Transform не назначен!");
-        }
+        // Устанавливаем начальную позицию чекпоинта (например, начальная позиция игрока)
+        lastCheckpointPosition = transform.position;
     }
 
     void Update()
     {
-        moveInput.x = Input.GetAxisRaw("Horizontal");
-        if (Input.GetButtonDown("Jump") && isGrounded && canJump)
+        float moveInput = Input.GetAxis("Horizontal");
+        rb.linearVelocity = new Vector2(moveInput * moveSpeed, rb.linearVelocity.y);
+
+        isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
+
+        if (Input.GetButtonDown("Jump") && isGrounded)
         {
-            Jump();
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
         }
+
+        if (moveInput > 0)
+            transform.localScale = new Vector3(1, 1, 1);
+        else if (moveInput < 0)
+            transform.localScale = new Vector3(-1, 1, 1);
     }
 
-    void FixedUpdate()
+    // Метод для установки чекпоинта
+    public void SetCheckpoint(Vector2 position)
     {
-        Move();
-        CheckGround();
+        lastCheckpointPosition = position;
+        Debug.Log($"Чекпоинт установлен: {lastCheckpointPosition}");
     }
 
-    void Move()
+    // Метод для перемещения игрока в последний чекпоинт
+    public void RespawnAtCheckpoint()
     {
-        rb.linearVelocity = new Vector2(moveInput.x * moveSpeed, rb.linearVelocity.y);
-    }
-
-    void Jump()
-    {
-        rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
-        isGrounded = false;
-        canJump = false;
-        Debug.Log("Прыжок выполнен!");
-    }
-
-    void CheckGround()
-    {
-        Vector2 position = groundCheck.position;
-        isGrounded = Physics2D.OverlapCircle(position, groundCheckRadius, groundLayer);
-        if (isGrounded && rb.linearVelocity.y <= 0)
-        {
-            canJump = true;
-        }
-        else
-        {
-            canJump = false;
-        }
-        Debug.Log($"isGrounded: {isGrounded}, canJump: {canJump}, VelocityY: {rb.linearVelocity.y}");
-    }
-
-    void OnDrawGizmos()
-    {
-        if (groundCheck != null)
-        {
-            Gizmos.color = Color.blue;
-            Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
-        }
+        transform.position = lastCheckpointPosition;
+        rb.linearVelocity = Vector2.zero; // Сбрасываем скорость
+        Debug.Log($"Игрок возрожден в чекпоинте: {lastCheckpointPosition}");
     }
 }
